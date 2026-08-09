@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Tetra Zen - Performance & Ranking Edition</title>
+    <style>
+        :root { 
+            --accent: #ff007f; 
+            --bg: #0d021a; 
+            --panel: rgba(20, 5, 35, 0.95); 
+            --neon-cyan: #00f3ff;
+            --neon-pink: #ff007f;
+            --neon-yellow: #ffee00;
+        }
+
+        body { 
+            background: radial-gradient(circle at center, #2a0845 0%, #0b001a 70%, #000 100%); 
+            color: #fff; 
+            font-family: 'Segoe UI', sans-serif; 
+            margin: 0; 
+            overflow: hidden; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+        }
+
+        body.bg-pulse {
+            animation: bgPulse 8s infinite alternate;
+        }
+
+        @keyframes bgPulse {
+            0% { background-color: #0b001a; }
+            50% { background-color: #1a0033; }
+            100% { background-color: #050d24; }
+        }
+
+        /* 画面フラッシュ用オーバーレイ */
+        #flash-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0;
+            mix-blend-mode: screen;
+            transition: opacity 0.05s ease-out;
+        }
+
+        /* モーダル・パネル基底 */
+        .modal-panel { 
+            position: absolute; 
+            z-index: 1000; 
+            background: var(--panel); 
+            padding: 25px; 
+            border-radius: 12px; 
+            text-align: center; 
+            border: 2px solid var(--neon-cyan); 
+            width: 420px; 
+            backdrop-filter: blur(15px); 
+            box-shadow: 0 0 30px var(--neon-cyan); 
+            max-height: 90vh;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+
+        #menu { display: block; }
+        #result-modal { display: none; z-index: 2000; }
+        #ranking-modal { display: none; z-index: 2000; }
+
+        .btn { 
+            background: #110022; 
+            border: 2px solid var(--neon-pink); 
+            color: #fff; 
+            padding: 12px; 
+            margin: 6px 0; 
+            cursor: pointer; 
+            width: 100%; 
+            font-size: 16px; 
+            font-weight: 900; 
+            transition: 0.2s; 
+            border-radius: 6px; 
+            text-shadow: 0 0 8px var(--neon-pink);
+            box-shadow: 0 0 15px rgba(255, 0, 127, 0.4);
+        }
+        .btn:hover { 
+            background: var(--neon-pink); 
+            color: #fff; 
+            box-shadow: 0 0 25px var(--neon-pink); 
+            transform: scale(1.02);
+        }
+        .btn-cyan {
+            border-color: var(--neon-cyan);
+            text-shadow: 0 0 8px var(--neon-cyan);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.4);
+        }
+        .btn-cyan:hover {
+            background: var(--neon-cyan);
+            color: #000;
+            box-shadow: 0 0 25px var(--neon-cyan);
+        }
+
+        .btn-preset-group {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .btn-preset {
+            flex: 1;
+            padding: 8px 4px;
+            font-size: 11px;
+            font-weight: bold;
+            background: #1a0033;
+            border: 1px solid var(--neon-cyan);
+            color: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+        .btn-preset:hover, .btn-preset.active {
+            background: var(--neon-cyan);
+            color: #000;
+        }
+
+        /* モード選択タブ */
+        .mode-select-group {
+            display: flex;
+            gap: 6px;
+            margin: 10px 0;
+        }
+        .btn-mode {
+            flex: 1;
+            padding: 10px 4px;
+            font-size: 12px;
+            font-weight: 900;
+            background: #110022;
+            border: 2px solid #555;
+            color: #aaa;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-mode.active {
+            border-color: var(--neon-yellow);
+            color: #fff;
+            background: #2a1a00;
+            box-shadow: 0 0 10px var(--neon-yellow);
+            text-shadow: 0 0 5px var(--neon-yellow);
+        }
+
+        /* ゲーム画面 */
+        #game-layout { 
+            display: none; 
+            gap: 40px; 
+            align-items: center; 
+            position: relative; 
+            max-height: 98vh; 
+        }
+        #game-layout.use-svg-wave {
+            filter: url(#neon-wave);
+        }
+
+        .canvas-container { 
+            position: relative; 
+            border: 4px solid var(--neon-cyan); 
+            background: rgba(0, 0, 0, 0.85); 
+            line-height: 0; 
+            box-shadow: 0 0 30px var(--neon-cyan); 
+        }
+
+        #effects-layer { position: absolute; left: -260px; top: 0; width: 240px; height: 100%; pointer-events: none; }
+
+        .pop-text { 
+            position: absolute; 
+            width: 320px; 
+            text-align: right; 
+            font-weight: 900; 
+            font-style: italic; 
+            opacity: 0; 
+            transform: translateX(50px) scale(0.5); 
+            transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.4); 
+            pointer-events: none;
+        }
+        .pop-active { 
+            opacity: 1 !important; 
+            transform: translateX(0) scale(1.2) !important; 
+        }
+
+        .spin-name { color: #fff; font-size: 28px; top: 180px; text-shadow: 0 0 10px #ffee00; }
+        .b2b-text { color: #fff; font-size: 24px; top: 225px; text-shadow: 0 0 10px #ff0055; }
+        .combo-text { color: #fff; font-size: 38px; top: 120px; text-shadow: 0 0 10px #00ff66; }
+        
+        .ac-text { 
+            position: absolute; left: 50%; top: 50%; 
+            transform: translate(-50%, -50%) scale(0.2); 
+            width: 700px; text-align: center; color: #fff; font-size: 85px; font-weight: 900; 
+            font-style: italic; opacity: 0; 
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.4); 
+            pointer-events: none; z-index: 2000; 
+            text-shadow: 0 0 20px #00f3ff, 0 0 40px #ff007f;
+        }
+        .ac-active { opacity: 1 !important; transform: translate(-50%, -50%) scale(1.15) !important; }
+
+        .side-panel { width: 140px; display: flex; flex-direction: column; gap: 15px; align-self: flex-start; }
+        .stat { background: var(--panel); padding: 12px; border-radius: 6px; border: 1px solid var(--neon-cyan); }
+        .label { font-size: 11px; color: var(--neon-cyan); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px; font-weight: bold; }
+        .value { font-size: 22px; font-weight: 900; font-family: 'Consolas', monospace; color: #fff; }
+
+        .setting-header { font-size: 12px; font-weight: bold; color: var(--neon-yellow); margin-top: 12px; text-transform: uppercase; letter-spacing: 1px; text-align: left; }
+        .setting-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; text-align: left; font-size: 11px; color: #ccc; }
+        .setting-item-full { grid-column: span 2; }
+        
+        input[type="text"], input[type="number"] { background: #000; color: var(--neon-cyan); border: 1px solid var(--neon-cyan); border-radius: 4px; padding: 6px; text-align: center; width: 100%; box-sizing: border-box; font-weight: bold; font-size: 14px; }
+        
+        .toggle-box { display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 6px 10px; border-radius: 4px; margin-top: 4px; }
+        .toggle-box input[type="checkbox"] { cursor: pointer; accent-color: var(--neon-pink); transform: scale(1.2); }
+
+        .slider-box { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+        input[type="range"] { -webkit-appearance: none; width: 100%; height: 5px; background: #1a0033; border: 1px solid var(--neon-cyan); border-radius: 3px; outline: none; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--neon-pink); cursor: pointer; }
+        .val-disp { font-weight: bold; color: var(--neon-cyan); min-width: 38px; text-align: right; }
+
+        /* ランキングテーブル */
+        .ranking-table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px; }
+        .ranking-table th { border-bottom: 2px solid var(--neon-cyan); color: var(--neon-yellow); padding: 8px 4px; text-align: center; }
+        .ranking-table td { border-bottom: 1px solid rgba(0, 243, 255, 0.2); padding: 8px 4px; text-align: center; }
+        .ranking-table tr:nth-child(1) td { color: #ffee00; font-weight: bold; }
+        .ranking-table tr:nth-child(2) td { color: #e6e6e6; font-weight: bold; }
+        .ranking-table tr:nth-child(3) td { color: #cd7f32; font-weight: bold; }
+    </style>
+</head>
+<body class="bg-pulse">
+
+<!-- 重いSVGフィルター -->
+<svg style="position: absolute; width: 0; height: 0;">
+    <filter id="neon-wave">
+        <feTurbulence id="wave-turbulence" type="fractalNoise" baseFrequency="0.005 0.01" numOctaves="1" result="noise"/>
+        <feDisplacementMap id="wave-disp" in="SourceGraphic" in2="noise" scale="8" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+</svg>
+
+<div id="flash-overlay"></div>
+
+<!-- メインメニュー -->
+<div id="menu" class="modal-panel">
+    <h1 style="margin:0 0 2px 0; color:var(--neon-cyan); letter-spacing: 4px; font-size: 30px;">TETRA ZEN</h1>
+    <p style="font-size: 10px; color: var(--neon-pink); margin-bottom: 15px; font-weight: bold; letter-spacing: 2px;">NEON WAVE EDITION</p>
+    
+    <div class="setting-header">🎮 Select Game Mode</div>
+    <div class="mode-select-group">
+        <button class="btn-mode active" id="mode-40l" onclick="selectMode('40LINES')">40 LINES</button>
+        <button class="btn-mode" id="mode-ultra" onclick="selectMode('ULTRA')">ULTRA (2M)</button>
+        <button class="btn-mode" id="mode-zen" onclick="selectMode('ZEN')">ZEN</button>
+    </div>
+
+    <button class="btn" onclick="startGame()">START GAME</button>
+    <button class="btn btn-cyan" onclick="openRankingModal()">🏆 RANKING</button>
+    
+    <div class="setting-header">🚀 Quick Performance Presets</div>
+    <div class="btn-preset-group">
+        <button class="btn-preset" onclick="applyPreset('low')">⚡ 最軽量 (Low)</button>
+        <button class="btn-preset" onclick="applyPreset('mid')">⚖️ 標準 (Balanced)</button>
+        <button class="btn-preset" onclick="applyPreset('high')">🎆 演出重視 (High)</button>
+    </div>
+
+    <div class="setting-header">⚙️ Performance & Visuals (描画・負荷設定)</div>
+    <div class="setting-group">
+        <div class="setting-item-full">
+            <div class="toggle-box">
+                <span>SVG Wave Filter (うねり効果) <br><small style="color:#888;">※極めて負荷が高い描画です</small></span>
+                <input type="checkbox" id="chk-svg" checked>
+            </div>
+        </div>
+        <div class="setting-item-full">
+            <div class="toggle-box">
+                <span>Glow / Shadow (発光・影効果) <br><small style="color:#888;">※Canvasの処理重さを軽減</small></span>
+                <input type="checkbox" id="chk-glow" checked>
+            </div>
+        </div>
+        <div class="setting-item-full">
+            <div class="toggle-box">
+                <span>Background Pulse (背景アニメーション)</span>
+                <input type="checkbox" id="chk-bg-pulse" checked>
+            </div>
+        </div>
+        <div class="setting-item-full">
+            Shake (画面揺れ強度)
+            <div class="slider-box">
+                <input type="range" id="eff-shake" min="0" max="200" value="100" oninput="document.getElementById('val-shake').innerText=this.value+'%'">
+                <span id="val-shake" class="val-disp">100%</span>
+            </div>
+        </div>
+        <div class="setting-item-full">
+            Particles (ネオン粒子量)
+            <div class="slider-box">
+                <input type="range" id="eff-part" min="0" max="200" value="100" oninput="document.getElementById('val-part').innerText=this.value+'%'">
+                <span id="val-part" class="val-disp">100%</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="setting-header">🎮 Board & System</div>
+    <div class="setting-group">
+        <div>Width<input type="number" id="board-w" value="10"></div>
+        <div>Height<input type="number" id="board-h" value="20"></div>
+    </div>
+    <div class="setting-group">
+        <div>DAS (ms)<input type="number" id="das" value="130"></div>
+        <div>ARR (ms)<input type="number" id="arr" value="0"></div>
+    </div>
+    <div class="setting-group">
+        <div class="setting-item-full">SDF (0=Inf)<input type="number" id="sdf" value="0"></div>
+    </div>
+</div>
+
+<!-- リザルトモーダル -->
+<div id="result-modal" class="modal-panel">
+    <h2 id="result-title" style="color:var(--neon-yellow); margin-top:0;">GAME OVER</h2>
+    <div id="result-details" style="font-size: 16px; margin: 15px 0; line-height: 1.6;"></div>
+    
+    <div style="margin: 15px 0; text-align: left;">
+        <label class="label" style="display:block; margin-bottom:5px;">Enter Your Name for Ranking:</label>
+        <input type="text" id="player-name" maxlength="10" placeholder="PLAYER" value="PLAYER" autocomplete="off">
+    </div>
+
+    <button class="btn" onclick="saveResultAndClose()">REGISTER RANKING</button>
+    <button class="btn btn-cyan" onclick="closeResultModal()">MAIN MENU</button>
+</div>
+
+<!-- ランキングモーダル -->
+<div id="ranking-modal" class="modal-panel">
+    <h2 style="color:var(--neon-cyan); margin-top:0;">TOP 5 RANKING</h2>
+    
+    <div class="mode-select-group">
+        <button class="btn-mode active" id="rank-tab-40l" onclick="renderRankingTable('40LINES')">40 LINES</button>
+        <button class="btn-mode" id="rank-tab-ultra" onclick="renderRankingTable('ULTRA')">ULTRA</button>
+        <button class="btn-mode" id="rank-tab-zen" onclick="renderRankingTable('ZEN')">ZEN</button>
+    </div>
+
+    <div id="ranking-table-container"></div>
+
+    <button class="btn btn-cyan" onclick="closeRankingModal()">CLOSE</button>
+</div>
+
+<!-- ゲーム本体表示エリア -->
+<div id="game-layout">
+    <div id="effects-layer">
+        <div id="combo-pop" class="pop-text combo-text"></div>
+        <div id="spin-pop" class="pop-text spin-name"></div>
+        <div id="b2b-pop" class="pop-text b2b-text">Back-to-Back</div>
+    </div>
+    <div id="ac-pop" class="ac-text">ALL CLEAR</div>
+
+    <div class="side-panel">
+        <div class="stat"><div class="label">Hold</div><canvas id="hold" width="100" height="70"></canvas></div>
+        <div class="stat"><div class="label">Score</div><div id="stat-score" class="value">0</div></div>
+        <div class="stat"><div class="label">Combo</div><div id="stat-combo" class="value">0</div></div>
+    </div>
+    <div class="canvas-container" id="canvas-container">
+        <canvas id="board"></canvas>
+    </div>
+    <div class="side-panel">
+        <div class="stat"><div class="label">Next</div><canvas id="next" width="100" height="250"></canvas></div>
+        <div class="stat"><div class="label">Lines</div><div id="stat-lines" class="value">0</div></div>
+        <div class="stat"><div class="label" id="timer-label">Timer</div><div id="timer" class="value">0.00</div></div>
+    </div>
+</div>
+
+<script>
+let ROWS = 20, COLS = 10, SDF = 0;
+const BLOCK_SIZE = 28;
+
+// ゲームモード関連
+let selectedMode = '40LINES'; // '40LINES', 'ULTRA', 'ZEN'
+let score = 0;
+let ultraTimeLimit = 120000; // 2分 (ms)
+
+// パフォーマンス＆エフェクト設定フラグ
+let optUseSvgWave = true;
+let optUseGlow = true;
+let optBgPulse = true;
+let shakeScale = 1.0;
+let particleScale = 1.0;
+
+// SRS Kick Table
+const KICK_DATA = {
+    "0-1": [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]],
+    "1-0": [[0,0], [1,0], [1,1], [0,-2], [1,-2]],
+    "1-2": [[0,0], [1,0], [1,1], [0,-2], [1,-2]],
+    "2-1": [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]],
+    "2-3": [[0,0], [1,0], [1,-1], [0,2], [1,2]],
+    "3-2": [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]],
+    "3-0": [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]],
+    "0-3": [[0,0], [1,0], [1,-1], [0,2], [1,2]],
+    "0-2": [[0,0], [0,1], [1,1], [-1,1], [1,0], [-1,0], [0,2], [1,2], [-1,2], [0,-1], [0,-2]],
+    "2-0": [[0,0], [0,-1], [-1,-1], [1,-1], [-1,0], [1,0], [0,-2], [-1,-2], [1,-2], [0,1], [0,2]],
+    "1-3": [[0,0], [1,0], [1,2], [1,1], [0,1], [0,2], [1,-1], [1,-2], [0,-1], [0,-2]],
+    "3-1": [[0,0], [-1,0], [-1,2], [-1,1], [0,1], [0,2], [-1,-1], [-1,-2], [0,-1], [0,-2]],
+    "I": {
+        "0-1": [[0,0], [-2,0], [1,0], [-2,1], [1,-2]],
+        "1-0": [[0,0], [2,0], [-1,0], [2,-1], [-1,2]],
+        "1-2": [[0,0], [-1,0], [2,0], [-1,-2], [2,1]],
+        "2-1": [[0,0], [1,0], [-2,0], [1,2], [-2,-1]],
+        "2-3": [[0,0], [2,0], [-1,0], [2,-1], [-1,2]],
+        "3-2": [[0,0], [-2,0], [1,0], [-2,1], [1,-2]],
+        "3-0": [[0,0], [1,0], [-2,0], [1,2], [-2,-1]],
+        "0-3": [[0,0], [-1,0], [2,0], [-1,-2], [2,1]],
+        "0-2": [[0,0], [-1,0], [-2,0], [1,0], [2,0], [0,1], [0,-1]],
+        "2-0": [[0,0], [1,0], [2,0], [-1,0], [-2,0], [0,-1], [0,1]],
+        "1-3": [[0,0], [0,1], [0,2], [0,-1], [0,-2], [-1,0], [1,0]],
+        "3-1": [[0,0], [0,-1], [0,-2], [0,1], [0,2], [1,0], [-1,0]]
+    }
+};
+
+const PIECES = {
+    'I': {color:'#00f3ff', shape:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]]},
+    'J': {color:'#0044ff', shape:[[1,0,0],[1,1,1],[0,0,0]]},
+    'L': {color:'#ff7700', shape:[[0,0,1],[1,1,1],[0,0,0]]},
+    'O': {color:'#ffee00', shape:[[0,1,1,0],[0,1,1,0],[0,0,0,0]]},
+    'S': {color:'#00ff66', shape:[[0,1,1],[1,1,0],[0,0,0]]},
+    'T': {color:'#ff00ff', shape:[[0,1,0],[1,1,1],[0,0,0]]},
+    'Z': {color:'#ff0044', shape:[[1,1,0],[0,1,1],[0,0,0]]}
+};
+
+let grid, piece = null, nextQueue = [], holdPiece, canHold, gameActive = false;
+let dasTime = 130, arrTime = 0, lastTime, dropCounter = 0, lockCounter = 0, softDropCounter = 0;
+let keyState = {}, dasTimer = 0, arrTimer = 0, rotationIdx = 0;
+let startTime, linesCleared = 0, comboCount = -1, isB2B = false, lastActionWasSpin = false;
+let raffId = null;
+let inputBuffer = null, lastUsedKickIdx = 0, lastRotationDir = 0;
+let lockResets = 0, lowestY = 0;
+const MAX_LOCK_RESETS = 15;
+let moveStack = [], activeDir = 0;
+let acAnimationTime = 0;
+const AC_DURATION = 2500;
+
+// リザルトデータ一時保持
+let lastGameResult = null;
+
+// Visual Engine Stats
+let particles = [], hardDropBeams = [], lineClearFlashes = [];
+let shakeIntensity = 0, waveIntensity = 8;
+
+// IME入力制御フラグ
+const nameInput = document.getElementById('player-name');
+nameInput.addEventListener('keydown', (e) => {
+    e.stopPropagation(); // ゲームへのキーイベント影響を完全遮断
+});
+nameInput.addEventListener('keyup', (e) => {
+    e.stopPropagation();
+});
+
+// モード選択
+function selectMode(mode) {
+    selectedMode = mode;
+    document.getElementById('mode-40l').classList.toggle('active', mode === '40LINES');
+    document.getElementById('mode-ultra').classList.toggle('active', mode === 'ULTRA');
+    document.getElementById('mode-zen').classList.toggle('active', mode === 'ZEN');
+}
+
+// プリセット適用関数
+function applyPreset(mode) {
+    const chkSvg = document.getElementById('chk-svg');
+    const chkGlow = document.getElementById('chk-glow');
+    const chkBg = document.getElementById('chk-bg-pulse');
+    const slShake = document.getElementById('eff-shake');
+    const slPart = document.getElementById('eff-part');
+
+    if (mode === 'low') {
+        chkSvg.checked = false;
+        chkGlow.checked = false;
+        chkBg.checked = false;
+        slShake.value = 0;
+        slPart.value = 0;
+    } else if (mode === 'mid') {
+        chkSvg.checked = false;
+        chkGlow.checked = true;
+        chkBg.checked = true;
+        slShake.value = 50;
+        slPart.value = 50;
+    } else if (mode === 'high') {
+        chkSvg.checked = true;
+        chkGlow.checked = true;
+        chkBg.checked = true;
+        slShake.value = 100;
+        slPart.value = 100;
+    }
+
+    document.getElementById('val-shake').innerText = slShake.value + '%';
+    document.getElementById('val-part').innerText = slPart.value + '%';
+}
+
+function addShakeAndWave(shakeAmount, waveAmount) {
+    if (shakeScale > 0) shakeIntensity = Math.min(shakeIntensity + shakeAmount * shakeScale, 35 * shakeScale);
+    if (optUseSvgWave) waveIntensity = Math.min(waveIntensity + waveAmount, 60);
+}
+
+function triggerFlash(color) {
+    if (!optUseGlow) return;
+    const flash = document.getElementById('flash-overlay');
+    flash.style.backgroundColor = color;
+    flash.style.opacity = '0.35';
+    setTimeout(() => { flash.style.opacity = '0'; }, 80);
+}
+
+function spawnParticles(x, y, color, count = 15, speedMult = 1, sizeMult = 1) {
+    if (particleScale <= 0) return;
+    const actualCount = Math.round(count * particleScale);
+    for (let i = 0; i < actualCount; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = (Math.random() * 6 + 2) * speedMult;
+        particles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: (Math.random() * 4 + 2) * sizeMult,
+            color, alpha: 1,
+            decay: Math.random() * 0.03 + 0.02
+        });
+    }
+}
+
+function spawnHardDropBeam(x, startY, endY, width, color) {
+    if (!optUseGlow && particleScale <= 0) return;
+    hardDropBeams.push({
+        x: x * BLOCK_SIZE,
+        y: startY * BLOCK_SIZE,
+        w: width * BLOCK_SIZE,
+        h: (endY - startY + 1) * BLOCK_SIZE,
+        color, alpha: 1.0
+    });
+}
+
+function addLineClearFlash(y, color) {
+    if (!optUseGlow) return;
+    lineClearFlashes.push({ y: y * BLOCK_SIZE, alpha: 1, color });
+}
+
+const IMAGES = {};
+['I', 'J', 'L', 'O', 'S', 'T', 'Z'].forEach(type => {
+    IMAGES[type] = new Image(); IMAGES[type].src = `images/${type}.png`;
+});
+IMAGES['ghost'] = new Image(); IMAGES['ghost'].src = 'images/ghost.png';
+IMAGES['allclear'] = new Image(); IMAGES['allclear'].src = 'images/allclear.png';
+
+const bCanvas = document.getElementById('board');
+const bCtx = bCanvas.getContext('2d');
+const nCtx = document.getElementById('next').getContext('2d');
+const hCtx = document.getElementById('hold').getContext('2d');
+
+const SE = {
+    move: 'sounds/move.mp3', rotate: 'sounds/rotate.mp3', kick: 'sounds/kick.mp3',
+    hold: 'sounds/hold.mp3', drop: 'sounds/drop.mp3', single: 'sounds/single.mp3',
+    quad: 'sounds/quad.mp3', spin: 'sounds/spin.mp3', retry: 'sounds/retry.mp3',
+    gameover: 'sounds/gameover.mp3', allclear: 'sounds/allclear.mp3'
+};
+
+function playSE(type) {
+    if (!SE[type]) return;
+    const audio = new Audio(SE[type]);
+    audio.volume = 0.4;
+    audio.play().catch(e => {});
+}
+
+function playComboSE(combo) {
+    if (combo < 1) return;
+    const audio = new Audio(`sounds/combo${Math.min(combo, 16)}.mp3`);
+    audio.volume = 0.4;
+    audio.play().catch(e => {});
+}
+
+function resetLockDelay() {
+    if (piece && collide(piece, 0, 1)) {
+        if (lockResets < MAX_LOCK_RESETS) {
+            lockCounter = 0;
+            lockResets++;
+        }
+    }
+}
+
+function tryMove(dx, dy) {
+    if (!piece) return false;
+    if (!collide(piece, dx, dy)) {
+        piece.pos.x += dx;
+        piece.pos.y += dy;
+        lastActionWasSpin = false;
+        playSE('move');
+
+        if (particleScale > 0) {
+            const px = (piece.pos.x + piece.matrix[0].length / 2) * BLOCK_SIZE;
+            const py = (piece.pos.y + piece.matrix.length / 2) * BLOCK_SIZE;
+            spawnParticles(px, py, piece.color, 3, 0.5, 0.8);
+        }
+
+        if (piece.pos.y > lowestY) { lowestY = piece.pos.y; lockResets = 0; }
+        resetLockDelay();
+        return true;
+    }
+    return false;
+}
+
+// ゲーム初期化（堅牢化対策済み）
+function initGame(isRetry = false) {
+    // 安全のためループ停止
+    if (raffId) {
+        cancelAnimationFrame(raffId);
+        raffId = null;
+    }
+    gameActive = false;
+
+    grid = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+    nextQueue = []; 
+    fillBag(); fillBag(); // 確実に2つのバッグを生成
+
+    piece = null;
+    holdPiece = null; 
+    canHold = true; 
+    linesCleared = 0; 
+    score = 0;
+    comboCount = -1; 
+    isB2B = false;
+    inputBuffer = null; 
+    acAnimationTime = 0;
+    moveStack = []; 
+    activeDir = 0; 
+    dasTimer = 0; 
+    arrTimer = 0;
+    dropCounter = 0;
+    lockCounter = 0;
+    softDropCounter = 0;
+    lockResets = 0; 
+    lowestY = 0;
+    particles = []; 
+    hardDropBeams = []; 
+    lineClearFlashes = []; 
+    shakeIntensity = 0; 
+    waveIntensity = 8;
+    
+    document.getElementById('timer-label').innerText = selectedMode === 'ULTRA' ? 'Time Left' : 'Timer';
+
+    startTime = Date.now(); 
+    lastTime = performance.now();
+    
+    updateUI(); 
+    spawnPiece(); // 初回ミノ生成保証
+
+    if (isRetry) playSE('retry');
+}
+
+function fillBag() {
+    const p = Object.keys(PIECES);
+    for(let i=p.length-1; i>0; i--){ const j = Math.floor(Math.random()*(i+1)); [p[i], p[j]] = [p[j], p[i]]; }
+    nextQueue.push(...p);
+}
+
+function spawnPiece() {
+    if (nextQueue.length < 7) fillBag();
+    const type = nextQueue.shift(); 
+    if (!type) return;
+
+    let spawnX = Math.floor((COLS - PIECES[type].shape[0].length) / 2);
+    let spawnY = (type === 'I') ? -1 : 0;
+
+    piece = { type, matrix: PIECES[type].shape.map(row => [...row]), pos: { x: spawnX, y: spawnY }, color: PIECES[type].color };
+    rotationIdx = 0; lastActionWasSpin = false; lastUsedKickIdx = 0; lastRotationDir = 0;
+    lockResets = 0; lowestY = spawnY;
+
+    if(collide()) {
+        playSE('gameover');
+        addShakeAndWave(30, 80);
+        triggerFlash('#ff0055');
+        endGame(false);
+        return;
+    }
+
+    if (inputBuffer) {
+        const bufferedCode = inputBuffer; inputBuffer = null; handleGameInput(bufferedCode);
+    }
+}
+
+function collide(p = piece, ox = 0, oy = 0) {
+    if (!p) return false;
+    for(let y=0; y<p.matrix.length; y++) for(let x=0; x<p.matrix[y].length; x++) {
+        if(p.matrix[y][x]){
+            let ny = y + p.pos.y + oy, nx = x + p.pos.x + ox;
+            if(nx < 0 || nx >= COLS || ny >= ROWS || (ny >= 0 && grid[ny][nx])) return true;
+        }
+    }
+    return false;
+}
+
+function rotateMatrix(matrix, dir) {
+    let n = matrix.length;
+    let res = Array.from({length: n}, () => Array(n).fill(0));
+    if (dir === 2) { for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) res[n - 1 - y][n - 1 - x] = matrix[y][x]; }
+    else if (dir === 1) { for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) res[x][n - 1 - y] = matrix[y][x]; }
+    else { for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) res[n - 1 - x][y] = matrix[y][x]; }
+    return res;
+}
+
+function rotate(dir) {
+    if (!piece) return;
+    if (piece.type === 'O') { playSE('rotate'); return; }
+    const prevIdx = rotationIdx;
+    let nextIdx = (rotationIdx + dir + 4) % 4;
+    let newMatrix = rotateMatrix(piece.matrix, dir);
+    const kickSet = (piece.type === 'I') ? KICK_DATA.I[`${prevIdx}-${nextIdx}`] : KICK_DATA[`${prevIdx}-${nextIdx}`];
+    const kicks = kickSet || [[0,0]];
+
+    for(let i = 0; i < kicks.length; i++) {
+        let [kx, ky] = kicks[i];
+        if(!collide({ ...piece, matrix: newMatrix }, kx, ky)){
+            piece.matrix = newMatrix; piece.pos.x += kx; piece.pos.y += ky;
+            rotationIdx = nextIdx; lastActionWasSpin = true; lastUsedKickIdx = i; lastRotationDir = dir;
+            
+            if (kx === 0 && ky === 0) playSE('rotate');
+            else { playSE('kick'); addShakeAndWave(6, 15); }
+
+            if (piece.pos.y > lowestY) { lowestY = piece.pos.y; lockResets = 0; }
+            resetLockDelay();
+            return;
+        }
+    }
+}
+
+function triggerPop(id, text = null) {
+    const el = document.getElementById(id);
+    if(!el) return;
+    if(text) el.innerText = text;
+    el.classList.remove('pop-active');
+    void el.offsetWidth;
+    el.classList.add('pop-active');
+    setTimeout(() => el.classList.remove('pop-active'), 1200);
+}
+
+function checkSpin(cleared) {
+    if (!piece || !lastActionWasSpin) return null;
+    const is180 = lastRotationDir === 2 ? " (180)" : "";
+    if (piece.type !== 'T') return cleared > 0 ? `${piece.type}-Spin ${["Single","Double","Triple","Tetra"][cleared-1]}${is180}` : `${piece.type}-Spin${is180}`;
+
+    let cx = piece.pos.x, cy = piece.pos.y;
+    let corners = [{x: cx, y: cy}, {x: cx + 2, y: cy}, {x: cx, y: cy + 2}, {x: cx + 2, y: cy + 2}];
+    let fillCount = 0;
+    corners.forEach(c => { if (c.x < 0 || c.x >= COLS || c.y >= ROWS || (c.y >= 0 && grid[c.y][c.x])) fillCount++; });
+    if (fillCount < 3) return null; 
+
+    let frontCorners = rotationIdx === 0 ? [corners[0], corners[1]] : rotationIdx === 1 ? [corners[1], corners[3]] : rotationIdx === 2 ? [corners[2], corners[3]] : [corners[0], corners[2]];
+    let frontFill = 0;
+    frontCorners.forEach(c => { if (c.x < 0 || c.x >= COLS || c.y >= ROWS || (c.y >= 0 && grid[c.y][c.x])) frontFill++; });
+
+    let isMini = (frontFill === 1 && lastUsedKickIdx !== 4);
+    if (lastRotationDir === 2) isMini = false;
+
+    const spinType = isMini ? "T-Spin Mini" : "T-Spin";
+    return cleared > 0 ? `${spinType} ${["Single","Double","Triple"][cleared-1] || cleared + " Lines"}${is180}` : `${spinType}${is180}`;
+}
+
+function lock() {
+    if (!piece) return;
+    piece.matrix.forEach((row, y) => row.forEach((v, x) => {
+        if(v && y+piece.pos.y >= 0 && y+piece.pos.y < ROWS) grid[y+piece.pos.y][x+piece.pos.x] = piece.type;
+    }));
+
+    let clearedRows = [];
+    grid.forEach((row, y) => { if(row.every(c => c !== 0)) clearedRows.push(y); });
+
+    const finalSpin = checkSpin(clearedRows.length);
+    const isTetris = clearedRows.length === 4;
+
+    // スコア計算
+    let baseScore = 0;
+    if (clearedRows.length === 1) baseScore = finalSpin ? 800 : 100;
+    else if (clearedRows.length === 2) baseScore = finalSpin ? 1200 : 300;
+    else if (clearedRows.length === 3) baseScore = finalSpin ? 1600 : 500;
+    else if (clearedRows.length === 4) baseScore = 800;
+
+    if (isB2B && baseScore > 0) baseScore *= 1.5;
+    score += Math.floor(baseScore);
+
+    if(isTetris) { triggerPop('spin-pop', 'TETRIS'); addShakeAndWave(22, 50); triggerFlash('#00f3ff'); }
+    else if(finalSpin) { triggerPop('spin-pop', finalSpin); addShakeAndWave(18, 40); triggerFlash('#ff00ff'); }
+
+    if (clearedRows.length > 0) {
+        comboCount++; 
+        score += comboCount * 50; // コンボボーナス
+
+        if (finalSpin !== null) playSE('spin');
+        else if (isTetris) playSE('quad');
+        else playSE('single');
+
+        if (comboCount > 0) {
+            triggerPop('combo-pop', `${comboCount} Combo`);
+            playComboSE(comboCount); 
+            addShakeAndWave(5 + comboCount * 2, 10 + comboCount * 4);
+        }
+        
+        if (isTetris || (finalSpin !== null && finalSpin.includes("T-Spin"))) {
+            if (isB2B) triggerPop('b2b-pop');
+            isB2B = true;
+        } else isB2B = false;
+        
+        linesCleared += clearedRows.length;
+        clearedRows.forEach(y => {
+            addLineClearFlash(y, piece.color);
+            if (particleScale > 0) {
+                for(let x = 0; x < COLS; x++) spawnParticles((x + 0.5) * BLOCK_SIZE, (y + 0.5) * BLOCK_SIZE, PIECES[piece.type].color, 6, 1.8, 1.2);
+            }
+        });
+
+        clearedRows.sort((a,b) => a-b).forEach(y => { grid.splice(y, 1); grid.unshift(Array(COLS).fill(0)); });
+
+        if (grid.every(row => row.every(c => c === 0)) && linesCleared > 0) {
+            acAnimationTime = AC_DURATION;
+            playSE('allclear');
+            addShakeAndWave(35, 90);
+            triggerFlash('#ffee00');
+            score += 2000; // All Clear Bonus
+        }
+    } else {
+        comboCount = -1; 
+        addShakeAndWave(3, 5);
+    }
+    
+    updateUI(); 
+
+    // モードクリアチェック (40 LINES)
+    if (selectedMode === '40LINES' && linesCleared >= 40) {
+        endGame(true);
+        return;
+    }
+
+    canHold = true; 
+    spawnPiece();
+}
+
+function updateUI() {
+    document.getElementById('stat-lines').innerText = linesCleared;
+    document.getElementById('stat-score').innerText = score;
+    document.getElementById('stat-combo').innerText = Math.max(0, comboCount);
+}
+
+function endGame(completed = false) {
+    gameActive = false;
+    if (raffId) cancelAnimationFrame(raffId);
+
+    const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
+    
+    lastGameResult = {
+        mode: selectedMode,
+        completed,
+        time: parseFloat(elapsedTime),
+        score: score,
+        lines: linesCleared,
+        date: new Date().toLocaleDateString()
+    };
+
+    const titleEl = document.getElementById('result-title');
+    const detailsEl = document.getElementById('result-details');
+
+    if (completed) {
+        titleEl.innerText = "STAGE CLEARED!";
+        titleEl.style.color = "var(--neon-cyan)";
+    } else {
+        titleEl.innerText = "GAME OVER";
+        titleEl.style.color = "var(--neon-pink)";
+    }
+
+    let detailHTML = `
+        <div><strong>Mode:</strong> ${selectedMode}</div>
+        <div><strong>Time:</strong> ${elapsedTime}s</div>
+        <div><strong>Score:</strong> ${score}</div>
+        <div><strong>Lines:</strong> ${linesCleared}</div>
+    `;
+    detailsEl.innerHTML = detailHTML;
+
+    document.getElementById('result-modal').style.display = 'block';
+}
+
+function update(time = 0) {
+    if(!gameActive) return;
+    const dt = time - lastTime; lastTime = time;
+
+    // ULTRA モード時間判定
+    const elapsed = Date.now() - startTime;
+    if (selectedMode === 'ULTRA') {
+        const remaining = Math.max(0, ultraTimeLimit - elapsed);
+        document.getElementById('timer').innerText = (remaining / 1000).toFixed(2);
+        if (remaining <= 0) {
+            endGame(true);
+            return;
+        }
+    } else {
+        document.getElementById('timer').innerText = (elapsed / 1000).toFixed(2);
+    }
+
+    if (acAnimationTime > 0) acAnimationTime -= dt;
+
+    // === LKP / DAS / ARR ===
+    if (activeDir !== 0 && piece) {
+        dasTimer += dt;
+        if (dasTimer >= dasTime) {
+            if (arrTime === 0) { while (tryMove(activeDir, 0)) {} }
+            else {
+                arrTimer += dt;
+                while (arrTimer >= arrTime) { tryMove(activeDir, 0); arrTimer -= arrTime; }
+            }
+        }
+    }
+
+    // === Soft Drop ===
+    if(keyState['ArrowDown'] && piece) { 
+        lockCounter = 0;
+        if (SDF === 0) { 
+            while(!collide(piece, 0, 1)) { 
+                piece.pos.y++; lastActionWasSpin = false; score += 1;
+                if (piece.pos.y > lowestY) { lowestY = piece.pos.y; lockResets = 0; }
+            } 
+        } else { 
+            softDropCounter += dt * SDF; 
+            if (softDropCounter >= 1000) { 
+                if(!collide(piece, 0, 1)) { 
+                    piece.pos.y++; lastActionWasSpin = false; score += 1;
+                    if (piece.pos.y > lowestY) { lowestY = piece.pos.y; lockResets = 0; }
+                } 
+                softDropCounter %= 1000; 
+            } 
+        }
+        updateUI();
+    }
+    
+    // === Gravity ===
+    dropCounter += dt;
+    if(dropCounter >= 1000 && piece) { 
+        if(!collide(piece, 0, 1)) { 
+            piece.pos.y++; lastActionWasSpin = false; 
+            if (piece.pos.y > lowestY) { lowestY = piece.pos.y; lockResets = 0; }
+        } 
+        dropCounter = 0; 
+    }
+
+    // === Lock Counter ===
+    if(piece && collide(piece, 0, 1)) { lockCounter += dt; if(lockCounter >= 500) lock(); }
+    else lockCounter = 0;
+
+    // --- エフェクト処理 ---
+    if (particleScale > 0) {
+        particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.alpha -= p.decay; });
+        particles = particles.filter(p => p.alpha > 0);
+    }
+    hardDropBeams.forEach(b => b.alpha -= 0.12); hardDropBeams = hardDropBeams.filter(b => b.alpha > 0);
+    lineClearFlashes.forEach(f => f.alpha -= 0.08); lineClearFlashes = lineClearFlashes.filter(f => f.alpha > 0);
+
+    if (shakeIntensity > 0) shakeIntensity *= 0.85;
+    if (optUseSvgWave) {
+        if (waveIntensity > 8) waveIntensity *= 0.92;
+        const turbulence = document.getElementById('wave-turbulence');
+        const disp = document.getElementById('wave-disp');
+        if (turbulence && disp) {
+            turbulence.setAttribute('baseFrequency', `${0.005 + Math.sin(time * 0.003) * 0.003} 0.01`);
+            disp.setAttribute('scale', waveIntensity);
+        }
+    }
+
+    draw(time); 
+    raffId = requestAnimationFrame(update);
+}
+
+function drawBlock(ctx, x, y, type, style = 'normal') {
+    const s = BLOCK_SIZE;
+    if (style === 'ghost') {
+        if (IMAGES['ghost'].complete && IMAGES['ghost'].width > 0) {
+            ctx.drawImage(IMAGES['ghost'], x * s, y * s, s, s);
+        } else {
+            ctx.strokeStyle = PIECES[type]?.color || '#fff'; ctx.lineWidth = 1.5;
+            ctx.strokeRect(x * s + 2, y * s + 2, s - 4, s - 4);
+        }
+    } else {
+        if (IMAGES[type] && IMAGES[type].complete && IMAGES[type].width > 0) {
+            ctx.drawImage(IMAGES[type], x * s, y * s, s, s);
+        } else {
+            ctx.fillStyle = PIECES[type]?.color || '#fff'; ctx.fillRect(x * s, y * s, s, s);
+            ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.strokeRect(x * s, y * s, s, s);
+        }
+    }
+}
+
+function draw(time = 0) {
+    const gameLayout = document.getElementById('game-layout');
+    if (shakeIntensity > 0.2 && shakeScale > 0) {
+        const sx = (Math.random() - 0.5) * shakeIntensity;
+        const sy = (Math.random() - 0.5) * shakeIntensity;
+        gameLayout.style.transform = `translate(${sx}px, ${sy}px)`;
+    } else {
+        gameLayout.style.transform = `none`;
+    }
+
+    bCtx.fillStyle = "#050010"; bCtx.fillRect(0, 0, bCanvas.width, bCanvas.height);
+
+    // グリッド線描画
+    bCtx.strokeStyle = "rgba(0, 243, 255, 0.12)"; bCtx.lineWidth = 1;
+    for(let x=0; x<=COLS; x++) { bCtx.beginPath(); bCtx.moveTo(x*BLOCK_SIZE, 0); bCtx.lineTo(x*BLOCK_SIZE, bCanvas.height); bCtx.stroke(); }
+    for(let y=0; y<=ROWS; y++) { bCtx.beginPath(); bCtx.moveTo(0, y*BLOCK_SIZE); bCtx.lineTo(bCanvas.width, y*BLOCK_SIZE); bCtx.stroke(); }
+
+    grid.forEach((row, y) => row.forEach((v, x) => { if(v) drawBlock(bCtx, x, y, v, 'normal'); }));
+
+    if (gameActive && piece) {
+        const ghost = JSON.parse(JSON.stringify(piece)); while(!collide(ghost)) ghost.pos.y++; ghost.pos.y--;
+        ghost.matrix.forEach((row, y) => row.forEach((v, x) => { if(v) drawBlock(bCtx, x + ghost.pos.x, y + ghost.pos.y, piece.type, 'ghost'); }));
+        piece.matrix.forEach((row, y) => row.forEach((v, x) => { if(v) drawBlock(bCtx, x + piece.pos.x, y + piece.pos.y, piece.type, 'normal'); }));
+    }
+
+    // エフェクト描画
+    if (optUseGlow || particleScale > 0) {
+        bCtx.save();
+        if (optUseGlow) bCtx.globalCompositeOperation = 'lighter';
+
+        hardDropBeams.forEach(b => {
+            bCtx.globalAlpha = b.alpha;
+            bCtx.fillStyle = b.color;
+            bCtx.fillRect(b.x, b.y, b.w, b.h);
+        });
+
+        lineClearFlashes.forEach(f => {
+            bCtx.globalAlpha = f.alpha;
+            bCtx.fillStyle = '#ffffff';
+            bCtx.fillRect(0, f.y - 2, bCanvas.width, BLOCK_SIZE + 4);
+        });
+
+        if (particleScale > 0) {
+            particles.forEach(p => {
+                bCtx.globalAlpha = Math.max(0, p.alpha);
+                bCtx.fillStyle = p.color;
+                if (optUseGlow) { bCtx.shadowColor = p.color; bCtx.shadowBlur = 8; }
+                bCtx.beginPath(); bCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2); bCtx.fill();
+            });
+        }
+        bCtx.restore();
+    }
+
+    if (acAnimationTime > 0 && IMAGES['allclear'].complete && IMAGES['allclear'].width > 0) {
+        bCtx.save();
+        const progress = AC_DURATION - acAnimationTime;
+        let scale = Math.min(1.0, progress / 250);
+        let alpha = acAnimationTime < 1200 ? acAnimationTime / 1200 : 1.0;
+
+        bCtx.globalAlpha = Math.max(0, alpha);
+        bCtx.translate(bCanvas.width / 2, bCanvas.height / 2);
+        bCtx.scale(scale, scale);
+
+        const targetW = bCanvas.width * 0.85;
+        const targetH = targetW * (IMAGES['allclear'].height / IMAGES['allclear'].width);
+        bCtx.drawImage(IMAGES['allclear'], -targetW / 2, -targetH / 2, targetW, targetH);
+        bCtx.restore();
+    }
+
+    [nCtx, hCtx].forEach(c => { c.fillStyle = "#050010"; c.fillRect(0,0,100,250); });
+    nextQueue.slice(0,4).forEach((t, i) => { 
+        const p=PIECES[t]; p.shape.forEach((r, y) => r.forEach((v, x) => { 
+            if(v){
+                if(IMAGES[t] && IMAGES[t].complete) nCtx.drawImage(IMAGES[t], x*12+22, y*12+i*55+20, 11, 11);
+                else { nCtx.fillStyle=p.color; nCtx.fillRect(x*12+22, y*12+i*55+20, 11, 11); }
+            } 
+        })); 
+    });
+    if(holdPiece){ 
+        const p=PIECES[holdPiece]; p.shape.forEach((r, y) => r.forEach((v, x) => { 
+            if(v){
+                if(IMAGES[holdPiece] && IMAGES[holdPiece].complete) hCtx.drawImage(IMAGES[holdPiece], x*12+22, y*12+20, 11, 11);
+                else { hCtx.fillStyle=p.color; hCtx.fillRect(x*12+22, y*12+20, 11, 11); }
+            } 
+        })); 
+    }
+}
+
+function returnToMenu() {
+    gameActive = false; 
+    if (raffId) cancelAnimationFrame(raffId);
+    document.getElementById('game-layout').style.display = 'none';
+    document.getElementById('menu').style.display = 'block';
+}
+
+function handleGameInput(code) {
+    if (!piece) return;
+    if(code === 'Space') { 
+        const wasSpin = checkSpin(0);
+        const startY = piece.pos.y;
+        while(!collide()) { piece.pos.y++; score += 2; } piece.pos.y--; 
+        if(wasSpin) lastActionWasSpin = true;
+        
+        spawnHardDropBeam(piece.pos.x, startY, piece.pos.y, piece.matrix[0].length, piece.color);
+        addShakeAndWave(10, 20);
+        
+        if (particleScale > 0) {
+            const dropPx = (piece.pos.x + piece.matrix[0].length / 2) * BLOCK_SIZE;
+            const dropPy = (piece.pos.y + piece.matrix.length) * BLOCK_SIZE;
+            spawnParticles(dropPx, dropPy, piece.color, 15, 2.0, 1.5);
+        }
+
+        playSE('drop'); updateUI(); lock(); return; 
+    }
+    if(code === 'ArrowUp') rotate(1);
+    if(code === 'KeyZ') rotate(-1);
+    if(code === 'KeyA') rotate(2);
+    if(code === 'KeyC' && canHold){
+        const old = holdPiece; holdPiece = piece.type;
+        if(!old) spawnPiece(); 
+        else { 
+            let spawnX = Math.floor((COLS - PIECES[old].shape[0].length) / 2);
+            let spawnY = (old === 'I') ? -1 : 0;
+            piece = { type: old, matrix: PIECES[old].shape.map(row => [...row]), pos: {x: spawnX, y: spawnY}, color: PIECES[old].color }; 
+            rotationIdx = 0; lockResets = 0; lowestY = spawnY;
+        }
+        canHold = false; playSE('hold');
+    }
+}
+
+function handleDirectionChange() {
+    const currentKey = moveStack[moveStack.length - 1];
+    const newDir = currentKey === 'ArrowLeft' ? -1 : (currentKey === 'ArrowRight' ? 1 : 0);
+
+    if (newDir !== activeDir) {
+        activeDir = newDir; dasTimer = 0; arrTimer = 0;
+        if (activeDir !== 0 && piece && gameActive) tryMove(activeDir, 0);
+    }
+}
+
+// Rキーによる即時リトライ処理
+function restartGame() {
+    document.getElementById('result-modal').style.display = 'none';
+    document.getElementById('ranking-modal').style.display = 'none';
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('game-layout').style.display = 'flex';
+
+    initGame(true);
+    gameActive = true; 
+    lastTime = performance.now();
+    raffId = requestAnimationFrame(update);
+}
+
+window.onkeydown = e => {
+    // IME入力中または入力フォームフォーカス時はゲームキー入力をスキップ
+    if (e.isComposing || e.target.tagName === 'INPUT') return;
+
+    if (e.code === 'Escape') returnToMenu();
+    if (e.code === 'KeyR') {
+        restartGame();
+        return;
+    }
+    if (!gameActive || e.repeat) return; 
+
+    if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+        if (!moveStack.includes(e.code)) { moveStack.push(e.code); handleDirectionChange(); }
+    }
+
+    const targetKeys = ['ArrowUp', 'KeyZ', 'KeyA', 'KeyC'];
+    if (!piece && targetKeys.includes(e.code)) { inputBuffer = e.code; return; }
+    if (piece) handleGameInput(e.code);
+    keyState[e.code] = true;
+};
+
+window.onkeyup = e => { 
+    if (e.isComposing || e.target.tagName === 'INPUT') return;
+    if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+        moveStack = moveStack.filter(k => k !== e.code);
+        handleDirectionChange();
+    }
+    keyState[e.code] = false; 
+};
+
+function startGame() {
+    // 各フラグと設定の読み込み
+    optUseSvgWave = document.getElementById('chk-svg').checked;
+    optUseGlow = document.getElementById('chk-glow').checked;
+    optBgPulse = document.getElementById('chk-bg-pulse').checked;
+
+    shakeScale = (parseInt(document.getElementById('eff-shake').value) || 0) / 100;
+    particleScale = (parseInt(document.getElementById('eff-part').value) || 0) / 100;
+
+    // 背景アニメーションのON/OFF切り替え
+    if (optBgPulse) document.body.classList.add('bg-pulse');
+    else document.body.classList.remove('bg-pulse');
+
+    const gameLayout = document.getElementById('game-layout');
+    if (optUseSvgWave) gameLayout.classList.add('use-svg-wave');
+    else gameLayout.classList.remove('use-svg-wave');
+
+    COLS = parseInt(document.getElementById('board-w').value) || 10;
+    ROWS = parseInt(document.getElementById('board-h').value) || 20;
+    dasTime = parseInt(document.getElementById('das').value) || 130;
+    arrTime = parseInt(document.getElementById('arr').value) || 0;
+    SDF = parseInt(document.getElementById('sdf').value) || 0;
+
+    bCanvas.width = COLS * BLOCK_SIZE; bCanvas.height = ROWS * BLOCK_SIZE;
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('result-modal').style.display = 'none';
+    document.getElementById('ranking-modal').style.display = 'none';
+    
+    gameLayout.style.display = 'flex';
+    
+    // 安全に初期化・生成を行ってからループ開始
+    initGame();
+    gameActive = true; 
+    lastTime = performance.now();
+    raffId = requestAnimationFrame(update);
+}
+
+// === ランキング機能 (Local Storage) ===
+function getRankings(mode) {
+    const data = localStorage.getItem(`tetris_rank_${mode}`);
+    return data ? JSON.parse(data) : [];
+}
+
+function saveRanking(mode, newEntry) {
+    let list = getRankings(mode);
+    list.push(newEntry);
+
+    if (mode === '40LINES') {
+        // 40LINES: クリアタイムが短い順（未完了は後ろ）
+        list.sort((a, b) => {
+            if (a.completed && !b.completed) return -1;
+            if (!a.completed && b.completed) return 1;
+            return a.time - b.time;
+        });
+    } else {
+        // ULTRA / ZEN: スコアが高い順
+        list.sort((a, b) => b.score - a.score);
+    }
+
+    // 上位5件を保持
+    list = list.slice(0, 5);
+    localStorage.setItem(`tetris_rank_${mode}`, JSON.stringify(list));
+}
+
+function saveResultAndClose() {
+    if (lastGameResult) {
+        const nameVal = document.getElementById('player-name').value.trim() || 'PLAYER';
+        lastGameResult.name = nameVal;
+        saveRanking(lastGameResult.mode, lastGameResult);
+    }
+    closeResultModal();
+    openRankingModal(lastGameResult ? lastGameResult.mode : '40LINES');
+}
+
+function closeResultModal() {
+    document.getElementById('result-modal').style.display = 'none';
+    returnToMenu();
+}
+
+function openRankingModal(mode = '40LINES') {
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('ranking-modal').style.display = 'block';
+    renderRankingTable(mode);
+}
+
+function closeRankingModal() {
+    document.getElementById('ranking-modal').style.display = 'none';
+    document.getElementById('menu').style.display = 'block';
+}
+
+function renderRankingTable(mode) {
+    document.getElementById('rank-tab-40l').classList.toggle('active', mode === '40LINES');
+    document.getElementById('rank-tab-ultra').classList.toggle('active', mode === 'ULTRA');
+    document.getElementById('rank-tab-zen').classList.toggle('active', mode === 'ZEN');
+
+    const list = getRankings(mode);
+    let container = document.getElementById('ranking-table-container');
+
+    if (list.length === 0) {
+        container.innerHTML = `<p style="color:#888; margin: 30px 0;">No Ranking Records Yet</p>`;
+        return;
+    }
+
+    let html = `
+        <table class="ranking-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>NAME</th>
+                    <th>${mode === '40LINES' ? 'TIME' : 'SCORE'}</th>
+                    <th>LINES</th>
+                    <th>DATE</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    list.forEach((item, idx) => {
+        const valStr = mode === '40LINES' ? `${item.time}s` : item.score;
+        html += `
+            <tr>
+                <td>${idx + 1}</td>
+                <td>${item.name}</td>
+                <td>${valStr}</td>
+                <td>${item.lines}</td>
+                <td style="font-size:10px; color:#aaa;">${item.date}</td>
+            </tr>
+        `;
+    });
+
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+}
+</script>
+</body>
+</html>
